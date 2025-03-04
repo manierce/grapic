@@ -463,8 +463,10 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         case GLFW_KEY_S: model = glm::translate(model, glm::vec3(0, -0.1, 0)); break;
         case GLFW_KEY_A: model = glm::translate(model, glm::vec3(-0.1, 0, 0)); break;
         case GLFW_KEY_D: model = glm::translate(model, glm::vec3(0.1, 0, 0)); break;
-        case GLFW_KEY_Q: model = glm::rotate(model, 0.1f, glm::vec3(0, 1, 0)); break;
-        case GLFW_KEY_E: model = glm::rotate(model, -0.1f, glm::vec3(0, 1, 0)); break;
+        case GLFW_KEY_F: model = glm::translate(model, glm::vec3(0, 0, 0.1)); break;
+        case GLFW_KEY_B: model = glm::translate(model, glm::vec3(0, 0, -0.1)); break;
+        case GLFW_KEY_Q: model = glm::rotate(model, 0.5f, glm::vec3(0, 1, 0)); break;
+        case GLFW_KEY_E: model = glm::rotate(model, -0.5f, glm::vec3(0, 1, 0)); break;
         case GLFW_KEY_Z: model = glm::scale(model, glm::vec3(1.1)); break;
         case GLFW_KEY_X: model = glm::scale(model, glm::vec3(0.9)); break;
         case GLFW_KEY_1: selectedObject = 0; break;
@@ -515,8 +517,7 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
         model = glm::rotate(model, (float)dx * 0.01f, glm::vec3(0, 1, 0));
         model = glm::rotate(model, (float)dy * 0.01f, glm::vec3(1, 0, 0));
     }
-    static double lastX = 400, lastY = 300; // 初始位置
-
+    
     if (rightMousePressed) {
         // 计算偏移量
         float xoffset = xpos - lastX;
@@ -532,9 +533,6 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
         // 限制高度范围（可选）
         if (height < 0.1f) height = 0.1f;
         if (height > 10.0f) height = 10.0f;
-
-        // 更新视图矩阵
-        view = calculate_view_matrix();
     }
     view = calculate_view_matrix();
 }
