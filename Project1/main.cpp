@@ -282,7 +282,7 @@ void installShaders() {
 void paintGL(void) {
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
+
     float aspectRatio = 1920 / 1080;
 
     // 透视投影矩阵（动态宽高比）
@@ -385,6 +385,7 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
         // 更新视图矩阵
         view = calculate_view_matrix();
     }
+    view = calculate_view_matrix();
 }
 
 void initializedGL(void) {
