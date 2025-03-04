@@ -93,10 +93,10 @@ void sendDataToOpenGL() {
 void createPlane(GameObject& obj) {
     float vertices[] = {
         // Î»ÖÃ          // ÑÕÉ«
-        -1.0f, 0.0f, -1.0f, 0.8f, 0.8f, 0.8f,
-         1.0f, 0.0f, -1.0f, 0.8f, 0.8f, 0.8f,
-         1.0f, 0.0f,  1.0f, 0.8f, 0.8f, 0.8f,
-        -1.0f, 0.0f,  1.0f, 0.8f, 0.8f, 0.8f,
+        -100.0f, -1.0f, -100.0f, 0.8f, 0.8f, 0.8f,
+         100.0f, -1.0f, -100.0f, 0.8f, 0.8f, 0.8f,
+         100.0f, -1.0f,  100.0f, 0.8f, 0.8f, 0.8f,
+        -100.0f, -1.0f,  100.0f, 0.8f, 0.8f, 0.8f,
     };
 
     unsigned int indices[] = {
@@ -537,6 +537,12 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
     view = calculate_view_matrix();
 }
 
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+    radius -= yoffset * 0.5f;
+    view = calculate_view_matrix();
+}
+
+
 void initializedGL(void) {
     // run only once
     glewExperimental = GL_TRUE;
@@ -583,6 +589,7 @@ int main(int argc, char* argv[]) {
     glfwSetKeyCallback(window, key_callback); // TODO
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetCursorPosCallback(window, cursor_pos_callback);
+    glfwSetScrollCallback(window, scroll_callback);
     // TODO: mouse callback, etc.
 
     /* Initialize the glew */

@@ -33,9 +33,4 @@
       <Filter>源文件</Filter>
     </Text>
   </ItemGroup>
-  <ItemGroup>
-    <Object Include="1.obj">
-      <Filter>源文件</Filter>
-    </Object>
-  </ItemGroup>
 </Project>
