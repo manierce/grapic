@@ -4,10 +4,15 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <vector>
+#include <sstream>
+#include <map>
 
 #include <iostream>
 #include <fstream>
 
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 GLint programID;
 
@@ -19,6 +24,22 @@ struct GameObject {
     GLuint EBO;
     int indexCount;
 };
+// 顶点数据结构（位置 + 纹理坐标 + 法线）
+struct VertexData {
+    glm::vec3 position;
+    glm::vec2 texCoord;
+    glm::vec3 normal;
+};
+
+std::vector<std::string> split(const std::string& s, char delimiter) {
+    std::vector<std::string> tokens;
+    std::string token;
+    std::istringstream tokenStream(s);
+    while (std::getline(tokenStream, token, delimiter)) {
+        tokens.push_back(token);
+    }
+    return tokens;
+}
 
 std::vector<GameObject> objects;
 int selectedObject = 0;
@@ -38,6 +59,7 @@ bool rightMousePressed = false;
 void createPlane(GameObject& obj);
 void createCube(GameObject& obj);
 void createPyramid(GameObject& obj);
+void createFromOBJ(GameObject& obj, const std::string& path);
 void updateTransformation();
 glm::mat4 calculate_view_matrix();
 
@@ -60,6 +82,10 @@ void sendDataToOpenGL() {
     createPyramid(pyramid);
     objects.push_back(pyramid);
 
+    // 添加模型4（从OBJ文件加载）
+    GameObject obj4;
+    createFromOBJ(obj4, "obj.txt"); // 确保路径正确
+    objects.push_back(obj4);
     // 初始化视图矩阵
     view = calculate_view_matrix();
 }
@@ -191,6 +217,130 @@ void createPyramid(GameObject& obj) {
     obj.model = glm::mat4(1.0f);
 }
 
+//导入obj
+void createFromOBJ(GameObject& obj, const std::string& path) {
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        std::cerr << "Error: Failed to open file " << path << std::endl;
+        return;
+    }
+
+    // 临时存储原始数据
+    std::vector<glm::vec3> positions;
+    std::vector<glm::vec2> texCoords;
+    std::vector<glm::vec3> normals;
+
+    // 最终顶点和索引数据
+    std::vector<VertexData> vertices;
+    std::vector<unsigned int> indices;
+    std::map<std::string, unsigned int> vertexToIndex;
+
+    std::string line;
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+        std::string type;
+        iss >> type;
+
+        if (type == "v") {
+            // 处理顶点位置：v x y z
+            glm::vec3 pos;
+            iss >> pos.x >> pos.y >> pos.z;
+            positions.push_back(pos);
+        }
+        else if (type == "vt") {
+            // 处理纹理坐标：vt u v
+            glm::vec2 tex;
+            iss >> tex.x >> tex.y;
+            texCoords.push_back(tex);
+        }
+        else if (type == "vn") {
+            // 处理法线：vn nx ny nz
+            glm::vec3 norm;
+            iss >> norm.x >> norm.y >> norm.z;
+            normals.push_back(norm);
+        }
+        else if (type == "f") {
+            // 处理面：f v1/vt1/vn1 v2/vt2/vn2 v3/vt3/vn3
+            for (int i = 0; i < 3; ++i) {
+                std::string vertexStr;
+                iss >> vertexStr;
+                std::vector<std::string> parts = split(vertexStr, '/');
+
+                // 解析索引（支持负数索引和缺失项）
+                int posIdx = 0, texIdx = -1, normIdx = -1;
+                if (!parts[0].empty()) posIdx = std::stoi(parts[0]);
+                if (parts.size() > 1 && !parts[1].empty()) texIdx = std::stoi(parts[1]);
+                if (parts.size() > 2 && !parts[2].empty()) normIdx = std::stoi(parts[2]);
+
+                // 处理相对索引（如 -1 表示最后一个元素）
+                posIdx = (posIdx < 0) ? positions.size() + posIdx : posIdx - 1;
+                if (texIdx != -1) texIdx = (texIdx < 0) ? texCoords.size() + texIdx : texIdx - 1;
+                if (normIdx != -1) normIdx = (normIdx < 0) ? normals.size() + normIdx : normIdx - 1;
+
+                // 组合顶点数据
+                VertexData vertex;
+                vertex.position = positions[posIdx];
+                if (texIdx >= 0 && texIdx < texCoords.size()) vertex.texCoord = texCoords[texIdx];
+                if (normIdx >= 0 && normIdx < normals.size()) vertex.normal = normals[normIdx];
+
+                // 检查是否已存在相同顶点
+                std::string key = vertexStr;
+                if (vertexToIndex.find(key) == vertexToIndex.end()) {
+                    vertexToIndex[key] = static_cast<unsigned int>(vertices.size());
+                    vertices.push_back(vertex);
+                }
+                indices.push_back(vertexToIndex[key]);
+            }
+        }
+    }
+
+    // 转换为 OpenGL 可用的顶点数组（位置 + 纹理坐标 + 法线）
+    std::vector<float> vertexBuffer;
+    for (const auto& v : vertices) {
+        vertexBuffer.push_back(v.position.x);
+        vertexBuffer.push_back(v.position.y);
+        vertexBuffer.push_back(v.position.z);
+        vertexBuffer.push_back(v.texCoord.x);
+        vertexBuffer.push_back(v.texCoord.y);
+        vertexBuffer.push_back(v.normal.x);
+        vertexBuffer.push_back(v.normal.y);
+        vertexBuffer.push_back(v.normal.z);
+    }
+
+    // 创建 OpenGL 缓冲区
+    glGenVertexArrays(1, &obj.VAO);
+    glGenBuffers(1, &obj.VBO);
+    glGenBuffers(1, &obj.EBO);
+
+    glBindVertexArray(obj.VAO);
+
+    // 填充 VBO
+    glBindBuffer(GL_ARRAY_BUFFER, obj.VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertexBuffer.size() * sizeof(float), vertexBuffer.data(), GL_STATIC_DRAW);
+
+    // 填充 EBO
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, obj.EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+
+    // 设置顶点属性指针
+    // 位置属性（0）
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    // 纹理坐标属性（1）
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    // 法线属性（2）
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(5 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+
+    obj.indexCount = indices.size();
+    obj.model = glm::mat4(1.0f);
+
+    std::cout << "Loaded OBJ-TXT model: " << path
+        << " (" << vertices.size() << " vertices, "
+        << indices.size() / 3 << " faces)" << std::endl;
+}
+
 void get_OpenGL_info() {
     // OpenGL information
     const GLubyte* name = glGetString(GL_VENDOR);
@@ -320,6 +470,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         case GLFW_KEY_1: selectedObject = 0; break;
         case GLFW_KEY_2: selectedObject = 1; break;
         case GLFW_KEY_3: selectedObject = 2; break;
+        case GLFW_KEY_4: selectedObject = 3; break;
         }
     }
 }
@@ -374,7 +525,7 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
         lastY = ypos;
 
         // 控制灵敏度
-        float sensitivity = 0.005f;
+        float sensitivity = 0.002f;
         theta -= xoffset * sensitivity; // 水平移动控制旋转角度
         height += yoffset * 0.01f;       // 垂直移动控制高度
 
